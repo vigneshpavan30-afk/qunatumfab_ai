@@ -80,14 +80,14 @@ function highlightPython(code) {
 // ── MAIN REDESIGNED CHIP DIAGRAM + WORKBENCH ──────────────────────────────────
 function ChipDiagram({ chip, substrate, baseTemp, junctionQuality, activeTab, setActiveTab }) {
   if (!chip) return null;
-  const { qubits = [], couplers = [], resonators = [], width = 800, height = 600, name } = chip;
+  const { qubits = [], couplers = [], resonators = [], width = 800, height = 600, name, topology } = chip;
 
   // Zoom & Pan states
   const [zoom, setZoom] = useState(1.0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [viewMode, setViewMode] = useState('physical'); // 'physical' or 'qiskit'
+  const [viewMode, setViewMode] = useState('fabricated'); // 'fabricated', 'physical', or 'qiskit'
 
   // Hover states for elements
   const [hoveredElement, setHoveredElement] = useState(null);
@@ -396,480 +396,776 @@ RouteMeander(design, 'readout_res_${r.qubit}',
         {/* 1. CAD VISUALIZER TAB */}
         {activeTab === 'cad' && (
           <div 
-            style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              padding: '20px', 
+              background: '#04070d',
+              overflowY: 'auto'
+            }}
           >
-            {/* Toolbar overlay */}
+            {/* Card Container */}
             <div style={{
-              position: 'absolute', top: 12, left: 12, zIndex: 10,
-              background: 'rgba(5, 8, 18, 0.85)', padding: '6px 12px',
-              borderRadius: 8, border: `1px solid ${C.border}`, backdropFilter: 'blur(8px)',
-              display: 'flex', gap: 12, alignItems: 'center'
+              background: 'rgba(8, 12, 24, 0.6)',
+              border: `1px solid ${viewMode === 'fabricated' ? C.green + '22' : C.border}`,
+              borderRadius: '12px',
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              boxShadow: viewMode === 'fabricated' ? `0 0 30px rgba(0, 245, 212, 0.03)` : 'none',
+              transition: 'all 0.3s ease'
             }}>
-              <button 
-                onClick={() => setViewMode(viewMode === 'physical' ? 'qiskit' : 'physical')}
-                style={{
-                  background: `linear-gradient(135deg, ${C.accent2}20, ${C.accent}20)`,
-                  border: `1px solid ${viewMode === 'physical' ? C.accent : C.accent2}`,
-                  borderRadius: 4, padding: '3px 10px', fontSize: '9px', fontWeight: 'bold',
-                  fontFamily: 'Share Tech Mono', color: C.white, cursor: 'pointer'
-                }}
-              >
-                👁️ {viewMode === 'physical' ? 'SWITCH TO CAD SCHEMATIC' : 'SWITCH TO PHYSICAL DIE'}
-              </button>
+              
+              {/* Card Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ 
+                  color: C.green, 
+                  fontSize: '16px', 
+                  fontWeight: 'bold', 
+                  fontFamily: 'Share Tech Mono',
+                  letterSpacing: '0.5px'
+                }}>
+                  {name ? name.toUpperCase() : 'GRID ARRAY'} — {qubits.length}-TRANSMON CHIP
+                </span>
+                <span style={{ 
+                  border: `1px solid ${C.green}55`, 
+                  background: 'rgba(0, 245, 212, 0.04)', 
+                  color: C.green, 
+                  fontSize: '10px', 
+                  fontFamily: 'Share Tech Mono', 
+                  padding: '3px 9px', 
+                  borderRadius: '6px',
+                  fontWeight: 'bold',
+                  boxShadow: `0 0 10px rgba(0, 245, 212, 0.15)`
+                }}>
+                  QISKIT METAL ({viewMode === 'fabricated' ? 'FABRICATED' : viewMode === 'physical' ? 'PHYSICAL' : 'DESIGN'})
+                </span>
+              </div>
 
-              <div style={{ width: 1, height: 14, background: C.border }} />
-
-              <button onClick={() => handleZoom(1.2)} style={{ background: 'transparent', border: 'none', color: C.text, cursor: 'pointer', fontSize: 13 }}>➕</button>
-              <button onClick={() => handleZoom(0.8)} style={{ background: 'transparent', border: 'none', color: C.text, cursor: 'pointer', fontSize: 13 }}>➖</button>
-              <button onClick={resetView} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 11, fontFamily: 'Share Tech Mono' }}>RESET VIEW</button>
-            </div>
-
-            {/* Quick stats indicator overlay */}
-            <div style={{
-              position: 'absolute', top: 12, right: 12, zIndex: 10,
-              background: 'rgba(5, 8, 18, 0.85)', padding: '6px 12px',
-              borderRadius: 8, border: `1px solid ${C.border}`, backdropFilter: 'blur(8px)',
-              fontFamily: 'Share Tech Mono', fontSize: '10px', color: C.muted
-            }}>
-              <span style={{ color: C.green }}>● LIVE INTERACTIVE CAD WAFER</span>
-            </div>
-
-            {/* Hover Inspector Tooltip Overlay */}
-            {hoveredElement && (
+              {/* Dynamic Description Box */}
               <div style={{
-                position: 'absolute', bottom: 16, left: 16, zIndex: 10,
-                background: 'rgba(8, 12, 26, 0.95)', padding: '14px 18px',
-                borderRadius: 8, border: `1px solid ${C.accent}`, backdropFilter: 'blur(10px)',
-                boxShadow: `0 0 16px ${C.accentGlow}`,
-                minWidth: 260, fontFamily: 'Share Tech Mono', animation: 'fadeIn 0.2s ease'
+                background: 'rgba(0, 245, 212, 0.02)',
+                borderLeft: `3px solid ${C.green}`,
+                padding: '12px 16px',
+                borderRadius: '0 8px 8px 0',
+                color: C.text,
+                fontSize: '12px',
+                fontFamily: "'Exo 2', sans-serif",
+                lineHeight: '1.6'
               }}>
-                <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, paddingBottom: 6, marginBottom: 8, alignItems: 'center' }}>
-                  <span style={{ color: C.accent, fontSize: '11px', fontWeight: 'bold' }}>🔬 CAD PIN INSPECTOR</span>
-                  <span style={{ marginLeft: 'auto', background: C.border, padding: '1px 5px', fontSize: '9px', borderRadius: 3, color: C.white }}>
-                    {hoveredElement.type.toUpperCase()}
+                Designed {qubits.length}-qubit {topology || 'grid'} chip using Qiskit Metal (TransmonPocket + RouteMeander + LaunchpadWirebond); scale ×1.00; with meander readout lines to bond pads.
+              </div>
+
+              {/* Segment Toggle Buttons */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {[
+                  { mode: 'qiskit', label: 'Chip Design Layout' },
+                  { mode: 'physical', label: 'Physical Die' },
+                  { mode: 'fabricated', label: 'Fabricated Chip' }
+                ].map(opt => (
+                  <button
+                    key={opt.mode}
+                    onClick={() => setViewMode(opt.mode)}
+                    style={{
+                      background: viewMode === opt.mode ? 'rgba(0, 245, 212, 0.08)' : 'transparent',
+                      border: `1px solid ${viewMode === opt.mode ? C.green : C.border}`,
+                      borderRadius: '6px',
+                      padding: '6px 14px',
+                      color: viewMode === opt.mode ? C.white : C.muted,
+                      fontSize: '11px',
+                      fontFamily: 'Share Tech Mono',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: viewMode === opt.mode ? `0 0 8px rgba(0, 245, 212, 0.2)` : 'none'
+                    }}
+                    onMouseEnter={e => {
+                      if (viewMode !== opt.mode) {
+                        e.target.style.borderColor = C.accent;
+                        e.target.style.color = C.white;
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (viewMode !== opt.mode) {
+                        e.target.style.borderColor = C.border;
+                        e.target.style.color = C.muted;
+                      }
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Main SVG Outer Canvas Frame */}
+              <div 
+                style={{
+                  border: `1px solid ${viewMode === 'fabricated' ? C.green + '55' : C.border}`,
+                  borderRadius: '10px',
+                  background: '#020407',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  height: '520px',
+                  boxShadow: viewMode === 'fabricated' ? 'inset 0 0 20px rgba(0, 245, 212, 0.05)' : 'none',
+                  transition: 'border-color 0.3s ease'
+                }}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+              >
+                {/* Toolbar overlay */}
+                <div style={{
+                  position: 'absolute', top: 12, left: 12, zIndex: 10,
+                  background: 'rgba(5, 8, 18, 0.85)', padding: '6px 12px',
+                  borderRadius: 8, border: `1px solid ${C.border}`, backdropFilter: 'blur(8px)',
+                  display: 'flex', gap: 12, alignItems: 'center'
+                }}>
+                  <button onClick={() => handleZoom(1.2)} style={{ background: 'transparent', border: 'none', color: C.text, cursor: 'pointer', fontSize: 13 }}>➕</button>
+                  <button onClick={() => handleZoom(0.8)} style={{ background: 'transparent', border: 'none', color: C.text, cursor: 'pointer', fontSize: 13 }}>➖</button>
+                  <button onClick={resetView} style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 11, fontFamily: 'Share Tech Mono' }}>RESET VIEW</button>
+                </div>
+
+                {/* Quick stats indicator overlay */}
+                <div style={{
+                  position: 'absolute', top: 12, right: 12, zIndex: 10,
+                  background: 'rgba(5, 8, 18, 0.85)', padding: '6px 12px',
+                  borderRadius: 8, border: `1px solid ${C.border}`, backdropFilter: 'blur(8px)',
+                  fontFamily: 'Share Tech Mono', fontSize: '10px', color: C.muted
+                }}>
+                  <span style={{ color: viewMode === 'fabricated' ? C.green : C.accent }}>
+                    ● LIVE INTERACTIVE {viewMode.toUpperCase()} VIEW
                   </span>
                 </div>
 
-                {hoveredElement.type === 'qubit' && (
-                  <div>
-                    <div style={{ color: C.white, fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>ID: {hoveredElement.data.id}</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>TYPE:</span><span style={{ color: C.green }}>{hoveredElement.data.type}</span>
+                {/* Hover Inspector Tooltip Overlay */}
+                {hoveredElement && (
+                  <div style={{
+                    position: 'absolute', bottom: 16, left: 16, zIndex: 10,
+                    background: 'rgba(8, 12, 26, 0.95)', padding: '14px 18px',
+                    borderRadius: 8, border: `1px solid ${C.accent}`, backdropFilter: 'blur(10px)',
+                    boxShadow: `0 0 16px ${C.accentGlow}`,
+                    minWidth: 260, fontFamily: 'Share Tech Mono', animation: 'fadeIn 0.2s ease'
+                  }}>
+                    <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, paddingBottom: 6, marginBottom: 8, alignItems: 'center' }}>
+                      <span style={{ color: C.accent, fontSize: '11px', fontWeight: 'bold' }}>🔬 CAD PIN INSPECTOR</span>
+                      <span style={{ marginLeft: 'auto', background: C.border, padding: '1px 5px', fontSize: '9px', borderRadius: 3, color: C.white }}>
+                        {hoveredElement.type.toUpperCase()}
+                      </span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>FREQUENCY:</span><span style={{ color: C.white }}>{hoveredElement.data.frequency_ghz || 5.1} GHz</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>ANHARMONICITY:</span><span style={{ color: C.yellow }}>-{hoveredElement.data.EC_Mhz || 220} MHz</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>E_J/E_C RATIO:</span><span style={{ color: C.accent2 }}>{(hoveredElement.data.EJ_Ghz * 1000 / (hoveredElement.data.EC_Mhz || 220) || 75).toFixed(1)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>COHERENCE T1:</span><span style={{ color: C.accent }}>~{metrics.avgT1} μs</span>
-                    </div>
+
+                    {hoveredElement.type === 'qubit' && (
+                      <div>
+                        <div style={{ color: C.white, fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>ID: {hoveredElement.data.id}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>TYPE:</span><span style={{ color: C.green }}>{hoveredElement.data.type}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>FREQUENCY:</span><span style={{ color: C.white }}>{hoveredElement.data.frequency_ghz || 5.1} GHz</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>ANHARMONICITY:</span><span style={{ color: C.yellow }}>-{hoveredElement.data.EC_Mhz || 220} MHz</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>E_J/E_C RATIO:</span><span style={{ color: C.accent2 }}>{(hoveredElement.data.EJ_Ghz * 1000 / (hoveredElement.data.EC_Mhz || 220) || 75).toFixed(1)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>COHERENCE T1:</span><span style={{ color: C.accent }}>~{metrics.avgT1} μs</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {hoveredElement.type === 'coupler' && (
+                      <div>
+                        <div style={{ color: C.white, fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>
+                          {hoveredElement.data.from} ── {hoveredElement.data.to}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>COUPLING TYPE:</span><span style={{ color: C.green }}>{hoveredElement.data.type || 'capacitive'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>COUPLING STRENGTH:</span><span style={{ color: C.accent }}>{hoveredElement.data.strength_mhz || 12} MHz</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>CPW PATH LENGTH:</span><span style={{ color: C.white }}>{hoveredElement.data.length_mm || 3.1} mm</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>MUTUAL CAP:</span><span style={{ color: C.yellow }}>~1.95 fF</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {hoveredElement.type === 'resonator' && (
+                      <div>
+                        <div style={{ color: C.white, fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>ID: {hoveredElement.data.id}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>QUBIT CONNECTION:</span><span style={{ color: C.green }}>{hoveredElement.data.qubit}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>RESONATOR FREQ:</span><span style={{ color: C.white }}>{hoveredElement.data.frequency_ghz} GHz</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>LOADED Q-FACTOR:</span><span style={{ color: C.yellow }}>{(hoveredElement.data.QL || 15000).toLocaleString()}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
+                          <span>MEANDER PASSES:</span><span style={{ color: C.accent2 }}>8 passes</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {hoveredElement.type === 'coupler' && (
-                  <div>
-                    <div style={{ color: C.white, fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>
-                      {hoveredElement.data.from} ── {hoveredElement.data.to}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>COUPLING TYPE:</span><span style={{ color: C.green }}>{hoveredElement.data.type || 'capacitive'}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>COUPLING STRENGTH:</span><span style={{ color: C.accent }}>{hoveredElement.data.strength_mhz || 12} MHz</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>CPW PATH LENGTH:</span><span style={{ color: C.white }}>{hoveredElement.data.length_mm || 3.1} mm</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>MUTUAL CAP:</span><span style={{ color: C.yellow }}>~1.95 fF</span>
-                    </div>
-                  </div>
-                )}
+                {/* Canvas Main SVG Container */}
+                <div 
+                  style={{
+                    width: '100%', height: '100%', cursor: isDragging ? 'grabbing' : 'grab',
+                    overflow: 'hidden', outline: 'none'
+                  }}
+                  onMouseDown={handleMouseDown}
+                >
+                  <div style={{
+                    width: '100%', height: '100%',
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                    transformOrigin: 'center center',
+                    transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2,0.8,0.2,1)'
+                  }}>
+                    {viewMode === 'fabricated' ? (
+                      /* ── RENDER: FABRICATED CHIP VIEW ── */
+                      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block', background: '#020406' }}>
+                        {/* Die Wafer */}
+                        <rect id="die-bg" x="20" y="20" width={width - 40} height={height - 40} fill="#030509" stroke="#12253b" strokeWidth="1.5" rx="8" />
+                        <rect x="28" y="28" width={width - 56} height={height - 56} fill="none" stroke="#091424" strokeWidth="1" rx="6" strokeDasharray="4 4" />
+                        
+                        {/* Watermark header inside the die */}
+                        <text x={width / 2} y={55} textAnchor="middle" fill="#2d4f7c" fontSize="11" fontFamily="Share Tech Mono" letterSpacing="2">Fabricated Superconducting Chip (Qiskit Metal)</text>
+                        
+                        {/* 4 Corner Alignment Marks */}
+                        {[
+                          { x: 75, y: 75 },
+                          { x: width - 75, y: 75 },
+                          { x: 75, y: height - 75 },
+                          { x: width - 75, y: height - 75 }
+                        ].map((m, idx) => (
+                          <g key={`fab-align-${idx}`}>
+                            <circle cx={m.x} cy={m.y} r="2" fill="#2d4f7c" />
+                            <polygon points={`${m.x},${m.y - 4} ${m.x - 3},${m.y - 10} ${m.x + 3},${m.y - 10}`} fill="none" stroke="#2d4f7c" strokeWidth="0.8" />
+                            <polygon points={`${m.x},${m.y + 4} ${m.x - 3},${m.y + 10} ${m.x + 3},${m.y + 10}`} fill="none" stroke="#2d4f7c" strokeWidth="0.8" />
+                            <polygon points={`${m.x - 4},${m.y} ${m.x - 10},${m.y - 3} ${m.x - 10},${m.y + 3}`} fill="none" stroke="#2d4f7c" strokeWidth="0.8" />
+                            <polygon points={`${m.x + 4},${m.y} ${m.x + 10},${m.y - 3} ${m.x + 10},${m.y + 3}`} fill="none" stroke="#2d4f7c" strokeWidth="0.8" />
+                          </g>
+                        ))}
 
-                {hoveredElement.type === 'resonator' && (
-                  <div>
-                    <div style={{ color: C.white, fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>ID: {hoveredElement.data.id}</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>QUBIT CONNECTION:</span><span style={{ color: C.green }}>{hoveredElement.data.qubit}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>RESONATOR FREQ:</span><span style={{ color: C.white }}>{hoveredElement.data.frequency_ghz} GHz</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>LOADED Q-FACTOR:</span><span style={{ color: C.yellow }}>{(hoveredElement.data.QL || 15000).toLocaleString()}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, margin: '2px 0' }}>
-                      <span>MEANDER PASSES:</span><span style={{ color: C.accent2 }}>8 passes</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+                        {/* CPW Meandered Buses (Inter-qubit couplers) */}
+                        {couplers.map((c, idx) => {
+                          const a = qubitMap[c.from], b = qubitMap[c.to];
+                          if (!a || !b) return null;
+                          const mx = (a.x + b.x) / 2;
+                          const isH = Math.abs(a.x - b.x) > Math.abs(a.y - b.y);
+                          let route;
+                          if (isH && Math.abs(a.y - b.y) < 10) {
+                            const midX = (a.x + b.x) / 2;
+                            const mW2 = Math.min(40, Math.abs(b.x - a.x) * 0.25);
+                            const mH2 = 14;
+                            const p = 4;
+                            let d = `M ${a.x} ${a.y} L ${midX - mW2/2} ${a.y}`;
+                            d += ` ${hMeander(midX - mW2/2, a.y - mH2/2, mW2, mH2, p).substring(1)}`;
+                            const lastX2 = ((p-1) % 2 === 0) ? midX + mW2/2 : midX - mW2/2;
+                            d += ` L ${lastX2} ${b.y} L ${b.x} ${b.y}`;
+                            route = d;
+                          } else {
+                            route = `M ${a.x} ${a.y} L ${mx} ${a.y} L ${mx} ${b.y} L ${b.x} ${b.y}`;
+                          }
 
-            {/* Canvas Main SVG Container */}
-            <div 
-              style={{
-                flex: 1, width: '100%', height: '100%', cursor: isDragging ? 'grabbing' : 'grab',
-                overflow: 'hidden', outline: 'none'
-              }}
-              onMouseDown={handleMouseDown}
-            >
-              <div style={{
-                width: '100%', height: '100%',
-                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                transformOrigin: 'center center',
-                transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2,0.8,0.2,1)'
-              }}>
-                {viewMode === 'physical' ? (
-                  /* ── RENDER: PHYSICAL DIE LAYOUT ── */
-                  <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-                    <defs>
-                      <filter id="substrateNoise" x="0" y="0" width="100%" height="100%">
-                        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="12" result="noise"/>
-                        <feColorMatrix type="saturate" values="0" in="noise" result="mono"/>
-                        <feBlend in="SourceGraphic" in2="mono" mode="multiply"/>
-                      </filter>
-                      <radialGradient id="metallicPad" cx="40%" cy="40%" r="60%">
-                        <stop offset="0%" stopColor="#ffffff" />
-                        <stop offset="30%" stopColor="#cccccc" />
-                        <stop offset="70%" stopColor="#888888" />
-                        <stop offset="100%" stopColor="#444444" />
-                      </radialGradient>
-                      <filter id="accentTraceGlow">
-                        <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
-                        <feMerge>
-                          <feMergeNode in="coloredBlur"/>
-                          <feMergeNode in="SourceGraphic"/>
-                        </feMerge>
-                      </filter>
-                    </defs>
+                          const isHovered = hoveredElement && hoveredElement.type === 'coupler' && hoveredElement.data.from === c.from && hoveredElement.data.to === c.to;
 
-                    {/* Ground Plane Die (Dark Deep Blue substrate) */}
-                    <rect id="die-bg" width={width} height={height} fill="#0d1424" rx="12" />
-                    <rect width={width} height={height} fill="#0b111d" rx="12" filter="url(#substrateNoise)" opacity="0.4" />
+                          return (
+                            <g 
+                              key={`fab-bus-${idx}`} 
+                              style={{ cursor: 'pointer' }}
+                              onMouseEnter={() => setHoveredElement({ type: 'coupler', data: c })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                            >
+                              <path d={route} fill="none" stroke="transparent" strokeWidth="18" />
+                              <path d={route} fill="none" stroke="#020406" strokeWidth="8" strokeLinecap="square" />
+                              <path 
+                                d={route} 
+                                fill="none" 
+                                stroke={isHovered ? C.green : "#528ebb"} 
+                                strokeWidth="1.8" 
+                                strokeLinecap="square"
+                                style={{ transition: 'stroke 0.2s' }}
+                              />
+                            </g>
+                          );
+                        })}
 
-                    {/* Wafer boundaries and grid marks */}
-                    <rect x="8" y="8" width={width-16} height={height-16} fill="none" stroke="#162238" strokeWidth="2" rx="10" />
-                    <rect x="18" y="18" width={width-36} height={height-36} fill="none" stroke="#162238" strokeWidth="0.8" rx="8" strokeDasharray="3 4" />
+                        {/* Left Readout Resonators */}
+                        {sortedQ.map((q, idx) => {
+                          if (idx >= leftPads.length) return null;
+                          const pad = leftPads[idx];
+                          const d = leftResPath(pad, q);
+                          const res = resonators.find(r => r.qubit === q.id) || { id: `R${q.id}`, qubit: q.id, frequency_ghz: 6.8 };
+                          const isHovered = hoveredElement && hoveredElement.type === 'resonator' && hoveredElement.data.qubit === q.id;
 
-                    {/* CPW Meandered Buses (Inter-qubit couplers) */}
-                    {couplers.map((c, idx) => {
-                      const a = qubitMap[c.from], b = qubitMap[c.to];
-                      if (!a || !b) return null;
-                      const mx = (a.x + b.x) / 2;
-                      const isH = Math.abs(a.x - b.x) > Math.abs(a.y - b.y);
-                      let route;
-                      if (isH && Math.abs(a.y - b.y) < 10) {
-                        const midX = (a.x + b.x) / 2;
-                        const mW2 = Math.min(40, Math.abs(b.x - a.x) * 0.25);
-                        const mH2 = 14;
-                        const p = 4;
-                        let d = `M ${a.x} ${a.y} L ${midX - mW2/2} ${a.y}`;
-                        d += ` ${hMeander(midX - mW2/2, a.y - mH2/2, mW2, mH2, p).substring(1)}`;
-                        const lastX2 = ((p-1) % 2 === 0) ? midX + mW2/2 : midX - mW2/2;
-                        d += ` L ${lastX2} ${b.y} L ${b.x} ${b.y}`;
-                        route = d;
-                      } else {
-                        route = `M ${a.x} ${a.y} L ${mx} ${a.y} L ${mx} ${b.y} L ${b.x} ${b.y}`;
-                      }
+                          return (
+                            <g 
+                              key={`fab-lres-${idx}`} 
+                              style={{ cursor: 'pointer' }}
+                              onMouseEnter={() => setHoveredElement({ type: 'resonator', data: res })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                            >
+                              <path d={d} fill="none" stroke="transparent" strokeWidth="18" />
+                              <path d={d} fill="none" stroke="#020406" strokeWidth="8" strokeLinecap="square" />
+                              <path 
+                                d={d} 
+                                fill="none" 
+                                stroke={isHovered ? C.green : "#4078a6"} 
+                                strokeWidth="1.5" 
+                                strokeLinecap="square" 
+                                style={{ transition: 'stroke 0.2s' }}
+                              />
+                            </g>
+                          );
+                        })}
 
-                      const isHovered = hoveredElement && hoveredElement.type === 'coupler' && hoveredElement.data.from === c.from && hoveredElement.data.to === c.to;
+                        {/* Right Drive Lines */}
+                        {sortedQ.map((q, idx) => {
+                          if (idx >= rightPads.length) return null;
+                          const pad = rightPads[idx];
+                          const d = rightDrivePath(q, pad);
+                          const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
 
-                      return (
-                        <g 
-                          key={`bus-${idx}`} 
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredElement({ type: 'coupler', data: c })}
-                          onMouseLeave={() => setHoveredElement(null)}
-                        >
-                          {/* Invisible fat interaction path */}
-                          <path d={route} fill="none" stroke="transparent" strokeWidth="18" />
-                          {/* Ground slot gap (shadow) */}
-                          <path d={route} fill="none" stroke="#05080f" strokeWidth="9" strokeLinecap="square" strokeLinejoin="miter" />
-                          {/* Superconducting core trace */}
-                          <path 
-                            d={route} 
-                            fill="none" 
-                            stroke={isHovered ? C.accent : "#5e779a"} 
-                            strokeWidth="2.5" 
-                            strokeLinecap="square" 
-                            strokeLinejoin="miter" 
-                            filter={isHovered ? "url(#accentTraceGlow)" : ""}
-                            style={{ transition: 'stroke 0.2s' }}
-                          />
-                        </g>
-                      );
-                    })}
+                          return (
+                            <g 
+                              key={`fab-rdrv-${idx}`}
+                              style={{ cursor: 'pointer' }}
+                              onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                            >
+                              <path d={d} fill="none" stroke="transparent" strokeWidth="16" />
+                              <path d={d} fill="none" stroke="#020406" strokeWidth="8" strokeLinecap="square" />
+                              <path 
+                                d={d} 
+                                fill="none" 
+                                stroke={isHovered ? C.green : "#4078a6"} 
+                                strokeWidth="1.5" 
+                                strokeLinecap="square"
+                                style={{ transition: 'stroke 0.2s' }}
+                              />
+                            </g>
+                          );
+                        })}
 
-                    {/* Left Readout Resonators */}
-                    {sortedQ.map((q, idx) => {
-                      if (idx >= leftPads.length) return null;
-                      const pad = leftPads[idx];
-                      const d = leftResPath(pad, q);
-                      const res = resonators.find(r => r.qubit === q.id) || { id: `R${q.id}`, qubit: q.id, frequency_ghz: 6.8 };
-                      const isHovered = hoveredElement && hoveredElement.type === 'resonator' && hoveredElement.data.qubit === q.id;
-
-                      return (
-                        <g 
-                          key={`lres-${idx}`} 
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredElement({ type: 'resonator', data: res })}
-                          onMouseLeave={() => setHoveredElement(null)}
-                        >
-                          <path d={d} fill="none" stroke="transparent" strokeWidth="18" />
-                          <path d={d} fill="none" stroke="#05080f" strokeWidth="9" strokeLinecap="square" />
-                          <path 
-                            d={d} 
-                            fill="none" 
-                            stroke={isHovered ? C.green : "#4f729a"} 
-                            strokeWidth="2.2" 
-                            strokeLinecap="square" 
-                            filter={isHovered ? "url(#accentTraceGlow)" : ""}
-                            style={{ transition: 'stroke 0.2s' }}
-                          />
-                        </g>
-                      );
-                    })}
-
-                    {/* Right Drive Lines */}
-                    {sortedQ.map((q, idx) => {
-                      if (idx >= rightPads.length) return null;
-                      const pad = rightPads[idx];
-                      const d = rightDrivePath(q, pad);
-                      const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
-
-                      return (
-                        <g 
-                          key={`rdrv-${idx}`}
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
-                          onMouseLeave={() => setHoveredElement(null)}
-                        >
-                          <path d={d} fill="none" stroke="transparent" strokeWidth="16" />
-                          <path d={d} fill="none" stroke="#05080f" strokeWidth="9" strokeLinecap="square" />
-                          <path 
-                            d={d} 
-                            fill="none" 
-                            stroke={isHovered ? C.accent2 : "#566b88"} 
-                            strokeWidth="2.2" 
-                            strokeLinecap="square"
-                            filter={isHovered ? "url(#accentTraceGlow)" : ""}
-                            style={{ transition: 'stroke 0.2s' }}
-                          />
-                        </g>
-                      );
-                    })}
-
-                    {/* Outer Bond Pads (Chrome micro-structured) */}
-                    {[...leftPads, ...rightPads].map((pad, idx) => {
-                      const isLeft = idx < leftPads.length;
-                      const stubX = isLeft ? 0 : width;
-                      return (
-                        <g key={`bp-${idx}`}>
-                          {/* Micro-wire connecting to package */}
-                          <line x1={pad.x + (isLeft ? -padR : padR)} y1={pad.y} x2={stubX} y2={pad.y} stroke="#3b526d" strokeWidth="2.5" />
-                          {/* Outer pad ring */}
-                          <circle cx={pad.x} cy={pad.y} r={padR} fill="url(#metallicPad)" stroke="#090d16" strokeWidth="1.5" />
-                          {/* Etched center */}
-                          <circle cx={pad.x} cy={pad.y} r={innerR} fill="#0d1424" />
-                          {/* Wirebond dot */}
-                          <circle cx={pad.x} cy={pad.y} r={4.5} fill="#5e779a" stroke="#253549" strokeWidth="0.5" />
-                        </g>
-                      );
-                    })}
-
-                    {/* Transmon Qubit Pockets (Physical layout) */}
-                    {qubits.map(q => {
-                      const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
-                      const pw = 56, ph = 56;
-                      const capW = 40, capH = 11;
-                      return (
-                        <g 
-                          key={`tp-${q.id}`} 
-                          style={{ cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
-                          onMouseLeave={() => setHoveredElement(null)}
-                        >
-                          {/* Hover outer highlight ring */}
-                          {isHovered && (
-                            <rect 
-                              x={q.x - pw/2 - 6} y={q.y - ph/2 - 6} width={pw + 12} height={ph + 12} 
-                              fill="none" stroke={C.accent} strokeWidth="2.5" rx="6" opacity="0.6"
-                              style={{ filter: "drop-shadow(0px 0px 8px rgba(0, 212, 255, 0.4))" }}
+                        {/* Left Launchpads (pointing right) */}
+                        {leftPads.map((pad, idx) => (
+                          <g key={`fab-bp-left-${idx}`}>
+                            <line x1={pad.x - 12} y1={pad.y} x2={0} y2={pad.y} stroke="#1b3659" strokeWidth="1.5" />
+                            <polygon 
+                              points={`${pad.x - 12},${pad.y - 12} ${pad.x + 4},${pad.y - 12} ${pad.x + 14},${pad.y} ${pad.x + 4},${pad.y + 12} ${pad.x - 12},${pad.y + 12}`} 
+                              fill="none" 
+                              stroke="#2d4f7c" 
+                              strokeWidth="1.2" 
+                              strokeDasharray="3 2" 
                             />
-                          )}
+                            <polygon 
+                              points={`${pad.x - 9},${pad.y - 8} ${pad.x + 2},${pad.y - 8} ${pad.x + 9},${pad.y} ${pad.x + 2},${pad.y + 8} ${pad.x - 9},${pad.y + 8}`} 
+                              fill="#061224" 
+                              stroke="#1c3659" 
+                              strokeWidth="0.8" 
+                            />
+                            <circle cx={pad.x - 2} cy={pad.y} r="2.5" fill="#4d8cb8" />
+                          </g>
+                        ))}
 
-                          {/* Silicon etched cavity pocket */}
-                          <rect x={q.x - pw/2} y={q.y - ph/2} width={pw} height={ph} fill="#070c17" stroke="#1c2b4a" strokeWidth="1.8" rx="4" />
-                          
-                          {/* Top metallic capacitor pocket pad */}
-                          <rect x={q.x - capW/2} y={q.y - ph/2 + 6} width={capW} height={capH} fill="#b49382" stroke="#4a3b34" strokeWidth="1" rx="2" />
-                          
-                          {/* Bottom metallic capacitor pocket pad */}
-                          <rect x={q.x - capW/2} y={q.y + ph/2 - 6 - capH} width={capW} height={capH} fill="#b49382" stroke="#4a3b34" strokeWidth="1" rx="2" />
-                          
-                          {/* Josephson Junction cross coupling dot at center */}
-                          <line x1={q.x - 5} y1={q.y} x2={q.x + 5} y2={q.y} stroke="#00d4ff" strokeWidth="1" />
-                          <line x1={q.x} y1={q.y - 5} x2={q.x} y2={q.y + 5} stroke="#00d4ff" strokeWidth="1" />
-                          <circle cx={q.x} cy={q.y} r={2.5} fill="#f1f5f9" stroke="#00d4ff" strokeWidth="0.8" />
-                          
-                          {/* Label tag */}
-                          <text x={q.x} y={q.y - 12} textAnchor="middle" fill="#566885" fontSize="8" fontFamily="Share Tech Mono">{q.id}</text>
-                        </g>
-                      );
-                    })}
-                  </svg>
-                ) : (
-                  /* ── RENDER: QISKIT METAL CAD SCHEMATIC ── */
-                  <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block', background: '#0e111b' }}>
-                    <defs>
-                      <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
-                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#161c2a" strokeWidth="0.8"/>
-                      </pattern>
-                    </defs>
+                        {/* Right Launchpads (pointing left) */}
+                        {rightPads.map((pad, idx) => (
+                          <g key={`fab-bp-right-${idx}`}>
+                            <line x1={pad.x + 12} y1={pad.y} x2={width} y2={pad.y} stroke="#1b3659" strokeWidth="1.5" />
+                            <polygon 
+                              points={`${pad.x + 12},${pad.y - 12} ${pad.x - 4},${pad.y - 12} ${pad.x - 14},${pad.y} ${pad.x - 4},${pad.y + 12} ${pad.x + 12},${pad.y + 12}`} 
+                              fill="none" 
+                              stroke="#2d4f7c" 
+                              strokeWidth="1.2" 
+                              strokeDasharray="3 2" 
+                            />
+                            <polygon 
+                              points={`${pad.x + 9},${pad.y - 8} ${pad.x - 2},${pad.y - 8} ${pad.x - 9},${pad.y} ${pad.x - 2},${pad.y + 8} ${pad.x + 9},${pad.y + 8}`} 
+                              fill="#061224" 
+                              stroke="#1c3659" 
+                              strokeWidth="0.8" 
+                            />
+                            <circle cx={pad.x + 2} cy={pad.y} r="2.5" fill="#4d8cb8" />
+                          </g>
+                        ))}
 
-                    {/* Grid background */}
-                    <rect width={width} height={height} fill="url(#gridPattern)"/>
+                        {/* Transmon Qubits (Lithography style) */}
+                        {qubits.map(q => {
+                          const qw = 60, qh = 60;
+                          const padW = 42, padH = 12;
+                          const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
+                          return (
+                            <g 
+                              key={`fab-q-${q.id}`}
+                              style={{ cursor: 'pointer' }}
+                              onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                            >
+                              <rect 
+                                x={q.x - qw/2} y={q.y - qh/2} width={qw} height={qh} 
+                                fill={isHovered ? "rgba(45, 79, 124, 0.1)" : "transparent"} 
+                                stroke={isHovered ? C.green : "#2d4f7c"} 
+                                strokeWidth="1.2" 
+                                strokeDasharray="4 3" 
+                                rx="4"
+                                style={{ transition: 'all 0.2s' }}
+                              />
+                              <rect 
+                                x={q.x - padW/2} y={q.y - 20} width={padW} height={padH} 
+                                fill="#061224" stroke="#1c3659" strokeWidth="1" rx="2" 
+                              />
+                              <rect 
+                                x={q.x - padW/2} y={q.y + 8} width={padW} height={padH} 
+                                fill="#061224" stroke="#1c3659" strokeWidth="1" rx="2" 
+                              />
+                              <line x1={q.x - padW/2 + 4} y1={q.y - 14} x2={q.x + padW/2 - 4} y2={q.y - 14} stroke="#1c3659" strokeWidth="0.8" />
+                              <line x1={q.x - padW/2 + 4} y1={q.y + 14} x2={q.x + padW/2 - 4} y2={q.y + 14} stroke="#1c3659" strokeWidth="0.8" />
+                              
+                              <line x1={q.x - 6} y1={q.y} x2={q.x + 6} y2={q.y} stroke={isHovered ? C.green : "#3e70a8"} strokeWidth="1.2" />
+                              <line x1={q.x} y1={q.y - 6} x2={q.x} y2={q.y + 6} stroke={isHovered ? C.green : "#3e70a8"} strokeWidth="1.2" />
+                              <circle cx={q.x} cy={q.y} r="2" fill="#ffffff" />
+                              <text x={q.x} y={q.y - 34} textAnchor="middle" fill={isHovered ? C.white : "#2d4f7c"} fontSize="9.5" fontFamily="Share Tech Mono" fontWeight="bold">{q.id}</text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    ) : viewMode === 'physical' ? (
+                      /* ── RENDER: PHYSICAL DIE LAYOUT ── */
+                      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+                        <defs>
+                          <filter id="substrateNoise" x="0" y="0" width="100%" height="100%">
+                            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="12" result="noise"/>
+                            <feColorMatrix type="saturate" values="0" in="noise" result="mono"/>
+                            <feBlend in="SourceGraphic" in2="mono" mode="multiply"/>
+                          </filter>
+                          <radialGradient id="metallicPad" cx="40%" cy="40%" r="60%">
+                            <stop offset="0%" stopColor="#ffffff" />
+                            <stop offset="30%" stopColor="#cccccc" />
+                            <stop offset="70%" stopColor="#888888" />
+                            <stop offset="100%" stopColor="#444444" />
+                          </radialGradient>
+                          <filter id="accentTraceGlow">
+                            <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                            <feMerge>
+                              <feMergeNode in="coloredBlur"/>
+                              <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                          </filter>
+                        </defs>
 
-                    {/* Axis Ticks */}
-                    <line x1="50" y1={height - 40} x2={width - 20} y2={height - 40} stroke="#28324b" strokeWidth="1.2"/>
-                    <line x1="50" y1="20" x2="50" y2={height - 40} stroke="#28324b" strokeWidth="1.2"/>
+                        {/* Ground Plane Die (Dark Deep Blue substrate) */}
+                        <rect id="die-bg" width={width} height={height} fill="#0d1424" rx="12" />
+                        <rect width={width} height={height} fill="#0b111d" rx="12" filter="url(#substrateNoise)" opacity="0.4" />
 
-                    {/* Connection Buses */}
-                    {couplers.map((c, idx) => {
-                      const a = qubitMap[c.from], b = qubitMap[c.to];
-                      if (!a || !b) return null;
-                      const mx = (a.x + b.x) / 2;
-                      const route = `M ${a.x} ${a.y} L ${mx} ${a.y} L ${mx} ${b.y} L ${b.x} ${b.y}`;
-                      const isHovered = hoveredElement && hoveredElement.type === 'coupler' && hoveredElement.data.from === c.from && hoveredElement.data.to === c.to;
+                        {/* Wafer boundaries and grid marks */}
+                        <rect x="8" y="8" width={width-16} height={height-16} fill="none" stroke="#162238" strokeWidth="2" rx="10" />
+                        <rect x="18" y="18" width={width-36} height={height-36} fill="none" stroke="#162238" strokeWidth="0.8" rx="8" strokeDasharray="3 4" />
 
-                      return (
-                        <g 
-                          key={`qm-bus-${idx}`}
-                          onMouseEnter={() => setHoveredElement({ type: 'coupler', data: c })}
-                          onMouseLeave={() => setHoveredElement(null)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <path d={route} fill="none" stroke="transparent" strokeWidth="12" />
-                          <path 
-                            d={route} 
-                            fill="none" 
-                            stroke={isHovered ? C.accent : "#3d4b68"} 
-                            strokeWidth={isHovered ? "2.5" : "1.8"} 
-                            strokeLinecap="square"
-                            strokeLinejoin="miter"
-                            style={{ transition: 'stroke 0.2s, stroke-width 0.2s' }}
-                          />
-                        </g>
-                      );
-                    })}
+                        {/* CPW Meandered Buses (Inter-qubit couplers) */}
+                        {couplers.map((c, idx) => {
+                          const a = qubitMap[c.from], b = qubitMap[c.to];
+                          if (!a || !b) return null;
+                          const mx = (a.x + b.x) / 2;
+                          const isH = Math.abs(a.x - b.x) > Math.abs(a.y - b.y);
+                          let route;
+                          if (isH && Math.abs(a.y - b.y) < 10) {
+                            const midX = (a.x + b.x) / 2;
+                            const mW2 = Math.min(40, Math.abs(b.x - a.x) * 0.25);
+                            const mH2 = 14;
+                            const p = 4;
+                            let d = `M ${a.x} ${a.y} L ${midX - mW2/2} ${a.y}`;
+                            d += ` ${hMeander(midX - mW2/2, a.y - mH2/2, mW2, mH2, p).substring(1)}`;
+                            const lastX2 = ((p-1) % 2 === 0) ? midX + mW2/2 : midX - mW2/2;
+                            d += ` L ${lastX2} ${b.y} L ${b.x} ${b.y}`;
+                            route = d;
+                          } else {
+                            route = `M ${a.x} ${a.y} L ${mx} ${a.y} L ${mx} ${b.y} L ${b.x} ${b.y}`;
+                          }
 
-                    {/* Left Resonators */}
-                    {sortedQ.map((q, idx) => {
-                      if (idx >= leftPads.length) return null;
-                      const pad = leftPads[idx];
-                      const d = leftResPath(pad, q);
-                      const res = resonators.find(r => r.qubit === q.id) || { id: `R${q.id}`, qubit: q.id, frequency_ghz: 6.8 };
-                      const isHovered = hoveredElement && hoveredElement.type === 'resonator' && hoveredElement.data.qubit === q.id;
+                          const isHovered = hoveredElement && hoveredElement.type === 'coupler' && hoveredElement.data.from === c.from && hoveredElement.data.to === c.to;
 
-                      return (
-                        <g 
-                          key={`qm-res-${idx}`}
-                          onMouseEnter={() => setHoveredElement({ type: 'resonator', data: res })}
-                          onMouseLeave={() => setHoveredElement(null)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <path d={d} fill="none" stroke="transparent" strokeWidth="12" />
-                          <path 
-                            d={d} 
-                            fill="none" 
-                            stroke={isHovered ? C.green : "#354460"} 
-                            strokeWidth={isHovered ? "2.2" : "1.5"} 
-                            strokeLinecap="square"
-                            style={{ transition: 'stroke 0.2s, stroke-width 0.2s' }}
-                          />
-                        </g>
-                      );
-                    })}
+                          return (
+                            <g 
+                              key={`bus-${idx}`} 
+                              style={{ cursor: 'pointer' }}
+                              onMouseEnter={() => setHoveredElement({ type: 'coupler', data: c })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                            >
+                              <path d={route} fill="none" stroke="transparent" strokeWidth="18" />
+                              <path d={route} fill="none" stroke="#05080f" strokeWidth="9" strokeLinecap="square" strokeLinejoin="miter" />
+                              <path 
+                                d={route} 
+                                fill="none" 
+                                stroke={isHovered ? C.accent : "#5e779a"} 
+                                strokeWidth="2.5" 
+                                strokeLinecap="square" 
+                                strokeLinejoin="miter" 
+                                filter={isHovered ? "url(#accentTraceGlow)" : ""}
+                                style={{ transition: 'stroke 0.2s' }}
+                              />
+                            </g>
+                          );
+                        })}
 
-                    {/* Right Drive Lines */}
-                    {sortedQ.map((q, idx) => {
-                      if (idx >= rightPads.length) return null;
-                      const pad = rightPads[idx];
-                      const d = rightDrivePath(q, pad);
-                      const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
+                        {/* Left Readout Resonators */}
+                        {sortedQ.map((q, idx) => {
+                          if (idx >= leftPads.length) return null;
+                          const pad = leftPads[idx];
+                          const d = leftResPath(pad, q);
+                          const res = resonators.find(r => r.qubit === q.id) || { id: `R${q.id}`, qubit: q.id, frequency_ghz: 6.8 };
+                          const isHovered = hoveredElement && hoveredElement.type === 'resonator' && hoveredElement.data.qubit === q.id;
 
-                      return (
-                        <g 
-                          key={`qm-drv-${idx}`}
-                          onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
-                          onMouseLeave={() => setHoveredElement(null)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <path d={d} fill="none" stroke="transparent" strokeWidth="12" />
-                          <path 
-                            d={d} 
-                            fill="none" 
-                            stroke={isHovered ? C.accent2 : "#354460"} 
-                            strokeWidth={isHovered ? "2.2" : "1.5"} 
-                            strokeLinecap="square"
-                            style={{ transition: 'stroke 0.2s, stroke-width 0.2s' }}
-                          />
-                        </g>
-                      );
-                    })}
+                          return (
+                            <g 
+                              key={`lres-${idx}`} 
+                              style={{ cursor: 'pointer' }}
+                              onMouseEnter={() => setHoveredElement({ type: 'resonator', data: res })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                            >
+                              <path d={d} fill="none" stroke="transparent" strokeWidth="18" />
+                              <path d={d} fill="none" stroke="#05080f" strokeWidth="9" strokeLinecap="square" />
+                              <path 
+                                d={d} 
+                                fill="none" 
+                                stroke={isHovered ? C.green : "#4f729a"} 
+                                strokeWidth="2.2" 
+                                strokeLinecap="square" 
+                                filter={isHovered ? "url(#accentTraceGlow)" : ""}
+                                style={{ transition: 'stroke 0.2s' }}
+                              />
+                            </g>
+                          );
+                        })}
 
-                    {/* Qubits as Cad blocks */}
-                    {qubits.map(q => {
-                      const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
-                      const qw = 46, qh = 46;
-                      return (
-                        <g 
-                          key={`qm-q-${q.id}`}
-                          onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
-                          onMouseLeave={() => setHoveredElement(null)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          {/* CAD Boundary Box */}
-                          <rect 
-                            x={q.x - qw/2} y={q.y - qh/2} width={qw} height={qh} 
-                            fill={isHovered ? "rgba(0, 212, 255, 0.08)" : "#131828"} 
-                            stroke={isHovered ? C.accent : "#2f3c58"} 
-                            strokeWidth="1.5" 
-                            rx="2"
-                            style={{ transition: 'all 0.2s' }}
-                          />
+                        {/* Right Drive Lines */}
+                        {sortedQ.map((q, idx) => {
+                          if (idx >= rightPads.length) return null;
+                          const pad = rightPads[idx];
+                          const d = rightDrivePath(q, pad);
+                          const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
 
-                          {/* Capacitor blocks inside */}
-                          <rect x={q.x - 16} y={q.y - 15} width={32} height={10} fill="#2f3b58" rx="1"/>
-                          <rect x={q.x - 16} y={q.y + 5} width={32} height={10} fill="#2f3b58" rx="1"/>
-                          <circle cx={q.x} cy={q.y} r={3} fill="#ff0054" />
+                          return (
+                            <g 
+                              key={`rdrv-${idx}`}
+                              style={{ cursor: 'pointer' }}
+                              onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                            >
+                              <path d={d} fill="none" stroke="transparent" strokeWidth="16" />
+                              <path d={d} fill="none" stroke="#05080f" strokeWidth="9" strokeLinecap="square" />
+                              <path 
+                                d={d} 
+                                fill="none" 
+                                stroke={isHovered ? C.accent2 : "#566b88"} 
+                                strokeWidth="2.2" 
+                                strokeLinecap="square"
+                                filter={isHovered ? "url(#accentTraceGlow)" : ""}
+                                style={{ transition: 'stroke 0.2s' }}
+                              />
+                            </g>
+                          );
+                        })}
 
-                          {/* Pins connector nodes */}
-                          <circle cx={q.x - qw/2} cy={q.y} r="2" fill="#566885" />
-                          <circle cx={q.x + qw/2} cy={q.y} r="2" fill="#566885" />
-                          <circle cx={q.x} cy={q.y - qh/2} r="2" fill="#566885" />
-                          <circle cx={q.x} cy={q.y + qh/2} r="2" fill="#566885" />
+                        {/* Outer Bond Pads (Chrome micro-structured) */}
+                        {[...leftPads, ...rightPads].map((pad, idx) => {
+                          const isLeft = idx < leftPads.length;
+                          const stubX = isLeft ? 0 : width;
+                          return (
+                            <g key={`bp-${idx}`}>
+                              <line x1={pad.x + (isLeft ? -padR : padR)} y1={pad.y} x2={stubX} y2={pad.y} stroke="#3b526d" strokeWidth="2.5" />
+                              <circle cx={pad.x} cy={pad.y} r={padR} fill="url(#metallicPad)" stroke="#090d16" strokeWidth="1.5" />
+                              <circle cx={pad.x} cy={pad.y} r={innerR} fill="#0d1424" />
+                              <circle cx={pad.x} cy={pad.y} r={4.5} fill="#5e779a" stroke="#253549" strokeWidth="0.5" />
+                            </g>
+                          );
+                        })}
 
-                          {/* Text ID */}
-                          <text x={q.x} y={q.y - 18} textAnchor="middle" fill={isHovered ? C.white : C.muted} fontSize="10" fontFamily="Share Tech Mono">{q.id}</text>
-                        </g>
-                      );
-                    })}
+                        {/* Transmon Qubit Pockets (Physical layout) */}
+                        {qubits.map(q => {
+                          const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
+                          const pw = 56, ph = 56;
+                          const capW = 40, capH = 11;
+                          return (
+                            <g 
+                              key={`tp-${q.id}`} 
+                              style={{ cursor: 'pointer' }}
+                              onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                            >
+                              {isHovered && (
+                                <rect 
+                                  x={q.x - pw/2 - 6} y={q.y - ph/2 - 6} width={pw + 12} height={ph + 12} 
+                                  fill="none" stroke={C.accent} strokeWidth="2.5" rx="6" opacity="0.6"
+                                  style={{ filter: "drop-shadow(0px 0px 8px rgba(0, 212, 255, 0.4))" }}
+                                />
+                              )}
+                              <rect x={q.x - pw/2} y={q.y - ph/2} width={pw} height={ph} fill="#070c17" stroke="#1c2b4a" strokeWidth="1.8" rx="4" />
+                              <rect x={q.x - capW/2} y={q.y - ph/2 + 6} width={capW} height={capH} fill="#b49382" stroke="#4a3b34" strokeWidth="1" rx="2" />
+                              <rect x={q.x - capW/2} y={q.y + ph/2 - 6 - capH} width={capW} height={capH} fill="#b49382" stroke="#4a3b34" strokeWidth="1" rx="2" />
+                              <line x1={q.x - 5} y1={q.y} x2={q.x + 5} y2={q.y} stroke="#00d4ff" strokeWidth="1" />
+                              <line x1={q.x} y1={q.y - 5} x2={q.x} y2={q.y + 5} stroke="#00d4ff" strokeWidth="1" />
+                              <circle cx={q.x} cy={q.y} r={2.5} fill="#f1f5f9" stroke="#00d4ff" strokeWidth="0.8" />
+                              <text x={q.x} y={q.y - 12} textAnchor="middle" fill="#566885" fontSize="8" fontFamily="Share Tech Mono">{q.id}</text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    ) : (
+                      /* ── RENDER: QISKIT METAL CAD SCHEMATIC ── */
+                      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block', background: '#0e111b' }}>
+                        <defs>
+                          <pattern id="gridPattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#161c2a" strokeWidth="0.8"/>
+                          </pattern>
+                        </defs>
 
-                    {/* Qiskit watermark */}
-                    <text x={width - 25} y={height - 20} textAnchor="end" fill="#202c46" fontSize="14" fontFamily="Share Tech Mono" fontWeight="bold">
-                      QISKIT METAL PLANAR MODEL
-                    </text>
-                  </svg>
-                )}
+                        {/* Grid background */}
+                        <rect width={width} height={height} fill="url(#gridPattern)"/>
+
+                        {/* Axis Ticks */}
+                        <line x1="50" y1={height - 40} x2={width - 20} y2={height - 40} stroke="#28324b" strokeWidth="1.2"/>
+                        <line x1="50" y1="20" x2="50" y2={height - 40} stroke="#28324b" strokeWidth="1.2"/>
+
+                        {/* Connection Buses */}
+                        {couplers.map((c, idx) => {
+                          const a = qubitMap[c.from], b = qubitMap[c.to];
+                          if (!a || !b) return null;
+                          const mx = (a.x + b.x) / 2;
+                          const route = `M ${a.x} ${a.y} L ${mx} ${a.y} L ${mx} ${b.y} L ${b.x} ${b.y}`;
+                          const isHovered = hoveredElement && hoveredElement.type === 'coupler' && hoveredElement.data.from === c.from && hoveredElement.data.to === c.to;
+
+                          return (
+                            <g 
+                              key={`qm-bus-${idx}`}
+                              onMouseEnter={() => setHoveredElement({ type: 'coupler', data: c })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <path d={route} fill="none" stroke="transparent" strokeWidth="12" />
+                              <path 
+                                d={route} 
+                                fill="none" 
+                                stroke={isHovered ? C.accent : "#3d4b68"} 
+                                strokeWidth={isHovered ? "2.5" : "1.8"} 
+                                strokeLinecap="square"
+                                strokeLinejoin="miter"
+                                style={{ transition: 'stroke 0.2s, stroke-width 0.2s' }}
+                              />
+                            </g>
+                          );
+                        })}
+
+                        {/* Left Resonators */}
+                        {sortedQ.map((q, idx) => {
+                          if (idx >= leftPads.length) return null;
+                          const pad = leftPads[idx];
+                          const d = leftResPath(pad, q);
+                          const res = resonators.find(r => r.qubit === q.id) || { id: `R${q.id}`, qubit: q.id, frequency_ghz: 6.8 };
+                          const isHovered = hoveredElement && hoveredElement.type === 'resonator' && hoveredElement.data.qubit === q.id;
+
+                          return (
+                            <g 
+                              key={`qm-res-${idx}`}
+                              onMouseEnter={() => setHoveredElement({ type: 'resonator', data: res })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <path d={d} fill="none" stroke="transparent" strokeWidth="12" />
+                              <path 
+                                d={d} 
+                                fill="none" 
+                                stroke={isHovered ? C.green : "#354460"} 
+                                strokeWidth={isHovered ? "2.2" : "1.5"} 
+                                strokeLinecap="square"
+                                style={{ transition: 'stroke 0.2s, stroke-width 0.2s' }}
+                              />
+                            </g>
+                          );
+                        })}
+
+                        {/* Right Drive Lines */}
+                        {sortedQ.map((q, idx) => {
+                          if (idx >= rightPads.length) return null;
+                          const pad = rightPads[idx];
+                          const d = rightDrivePath(q, pad);
+                          const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
+
+                          return (
+                            <g 
+                              key={`qm-drv-${idx}`}
+                              onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <path d={d} fill="none" stroke="transparent" strokeWidth="12" />
+                              <path 
+                                d={d} 
+                                fill="none" 
+                                stroke={isHovered ? C.accent2 : "#354460"} 
+                                strokeWidth={isHovered ? "2.2" : "1.5"} 
+                                strokeLinecap="square"
+                                style={{ transition: 'stroke 0.2s, stroke-width 0.2s' }}
+                              />
+                            </g>
+                          );
+                        })}
+
+                        {/* Qubits as Cad blocks */}
+                        {qubits.map(q => {
+                          const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
+                          const qw = 46, qh = 46;
+                          return (
+                            <g 
+                              key={`qm-q-${q.id}`}
+                              onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
+                              onMouseLeave={() => setHoveredElement(null)}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              {/* CAD Boundary Box */}
+                              <rect 
+                                x={q.x - qw/2} y={q.y - qh/2} width={qw} height={qh} 
+                                fill={isHovered ? "rgba(0, 212, 255, 0.08)" : "#131828"} 
+                                stroke={isHovered ? C.accent : "#2f3c58"} 
+                                strokeWidth="1.5" 
+                                rx="2"
+                                style={{ transition: 'all 0.2s' }}
+                              />
+
+                              {/* Capacitor blocks inside */}
+                              <rect x={q.x - 16} y={q.y - 15} width={32} height={10} fill="#2f3b58" rx="1"/>
+                              <rect x={q.x - 16} y={q.y + 5} width={32} height={10} fill="#2f3b58" rx="1"/>
+                              <circle cx={q.x} cy={q.y} r={3} fill="#ff0054" />
+
+                              {/* Pins connector nodes */}
+                              <circle cx={q.x - qw/2} cy={q.y} r="2" fill="#566885" />
+                              <circle cx={q.x + qw/2} cy={q.y} r="2" fill="#566885" />
+                              <circle cx={q.x} cy={q.y - qh/2} r="2" fill="#566885" />
+                              <circle cx={q.x} cy={q.y + qh/2} r="2" fill="#566885" />
+
+                              {/* Text ID */}
+                              <text x={q.x} y={q.y - 18} textAnchor="middle" fill={isHovered ? C.white : C.muted} fontSize="10" fontFamily="Share Tech Mono">{q.id}</text>
+                            </g>
+                          );
+                        })}
+
+                        {/* Qiskit watermark */}
+                        <text x={width - 25} y={height - 20} textAnchor="end" fill="#202c46" fontSize="14" fontFamily="Share Tech Mono" fontWeight="bold">
+                          QISKIT METAL PLANAR MODEL
+                        </text>
+                      </svg>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
