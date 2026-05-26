@@ -77,9 +77,13 @@ app.post('/api/chat', async (req, res) => {
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`\n🔬 QuantumFab AI Backend running on http://localhost:${PORT}`);
-  console.log(`   Base URL : ${process.env.ANTHROPIC_BASE_URL}`);
-  console.log(`   Model    : ${process.env.ANTHROPIC_DEFAULT_SONNET_MODEL}\n`);
-});
+if (require.main === module) {
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`\n🔬 QuantumFab AI Backend running on http://localhost:${PORT}`);
+    console.log(`   Base URL : ${process.env.ANTHROPIC_BASE_URL}`);
+    console.log(`   Model    : ${process.env.ANTHROPIC_DEFAULT_SONNET_MODEL}\n`);
+  });
+}
+
+module.exports = app;
