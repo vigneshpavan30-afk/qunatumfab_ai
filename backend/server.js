@@ -46,7 +46,7 @@ For non-design questions, answer as a knowledgeable quantum hardware expert. Cov
 - Error rates and gate fidelities
 - Cryogenic requirements`;
 
-app.post('/api/chat', async (req, res) => {
+app.post(['/api/chat', '/backend/server.js', '/chat', '/'], async (req, res) => {
   const { messages } = req.body;
   
   try {
@@ -75,7 +75,7 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get(['/health', '/backend/server.js/health', '/api/health', '/'], (req, res) => res.json({ status: 'ok' }));
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3001;
