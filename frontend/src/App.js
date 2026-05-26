@@ -631,214 +631,282 @@ RouteMeander(design, 'readout_res_${r.qubit}',
                     transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.2,0.8,0.2,1)'
                   }}>
                     {viewMode === 'fabricated' ? (
-                      /* ── RENDER: FABRICATED CHIP VIEW ── */
-                      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block', background: '#020406' }}>
-                        {/* Die Wafer */}
-                        <rect id="die-bg" x="20" y="20" width={width - 40} height={height - 40} fill="#030509" stroke="#12253b" strokeWidth="1.5" rx="8" />
-                        <rect x="28" y="28" width={width - 56} height={height - 56} fill="none" stroke="#091424" strokeWidth="1" rx="6" strokeDasharray="4 4" />
-                        
-                        {/* Watermark header inside the die */}
-                        <text x={width / 2} y={55} textAnchor="middle" fill="#2d4f7c" fontSize="11" fontFamily="Share Tech Mono" letterSpacing="2">Fabricated Superconducting Chip (Qiskit Metal)</text>
-                        
-                        {/* 4 Corner Alignment Marks */}
-                        {[
-                          { x: 75, y: 75 },
-                          { x: width - 75, y: 75 },
-                          { x: 75, y: height - 75 },
-                          { x: width - 75, y: height - 75 }
-                        ].map((m, idx) => (
-                          <g key={`fab-align-${idx}`}>
-                            <circle cx={m.x} cy={m.y} r="2" fill="#2d4f7c" />
-                            <polygon points={`${m.x},${m.y - 4} ${m.x - 3},${m.y - 10} ${m.x + 3},${m.y - 10}`} fill="none" stroke="#2d4f7c" strokeWidth="0.8" />
-                            <polygon points={`${m.x},${m.y + 4} ${m.x - 3},${m.y + 10} ${m.x + 3},${m.y + 10}`} fill="none" stroke="#2d4f7c" strokeWidth="0.8" />
-                            <polygon points={`${m.x - 4},${m.y} ${m.x - 10},${m.y - 3} ${m.x - 10},${m.y + 3}`} fill="none" stroke="#2d4f7c" strokeWidth="0.8" />
-                            <polygon points={`${m.x + 4},${m.y} ${m.x + 10},${m.y - 3} ${m.x + 10},${m.y + 3}`} fill="none" stroke="#2d4f7c" strokeWidth="0.8" />
-                          </g>
-                        ))}
+                      /* ── RENDER: FABRICATED CHIP VIEW (Qiskit Metal Style) ── */
+                      (() => {
+                        const TC = '#17e3f5';   // bright cyan trace
+                        const TCD = '#0a6a80';  // dim cyan for CPW ground edges
+                        const BG = '#070e1c';   // dark navy background
+                        const QW = 70, QH = 70; // TransmonPocket outer boundary
+                        const IW = 52, IH = 36; // inner metal island
+                        const cpW = 32, cpH = 10; // coupling pad size
+                        // Chip center for launchpad placement
+                        const qxs = qubits.map(q => q.x);
+                        const qys = qubits.map(q => q.y);
+                        const qCx = qubits.length ? (Math.min(...qxs) + Math.max(...qxs)) / 2 : width / 2;
+                        const qCy = qubits.length ? (Math.min(...qys) + Math.max(...qys)) / 2 : height / 2;
+                        // Top/bottom launchpads feed from chip center-x
+                        const topLP = { x: qCx, y: 52 };
+                        const botLP = { x: qCx, y: height - 52 };
+                        // Qubit groups for top/bottom resonator routing
+                        const topQubits = [...qubits].sort((a, b) => a.y - b.y).slice(0, Math.ceil(qubits.length / 2));
+                        const botQubits = [...qubits].sort((a, b) => b.y - a.y).slice(0, Math.floor(qubits.length / 2));
 
-                        {/* CPW Meandered Buses (Inter-qubit couplers) */}
-                        {couplers.map((c, idx) => {
-                          const a = qubitMap[c.from], b = qubitMap[c.to];
-                          if (!a || !b) return null;
-                          const mx = (a.x + b.x) / 2;
-                          const isH = Math.abs(a.x - b.x) > Math.abs(a.y - b.y);
-                          let route;
-                          if (isH && Math.abs(a.y - b.y) < 10) {
-                            const midX = (a.x + b.x) / 2;
-                            const mW2 = Math.min(40, Math.abs(b.x - a.x) * 0.25);
-                            const mH2 = 14;
-                            const p = 4;
-                            let d = `M ${a.x} ${a.y} L ${midX - mW2/2} ${a.y}`;
-                            d += ` ${hMeander(midX - mW2/2, a.y - mH2/2, mW2, mH2, p).substring(1)}`;
-                            const lastX2 = ((p-1) % 2 === 0) ? midX + mW2/2 : midX - mW2/2;
-                            d += ` L ${lastX2} ${b.y} L ${b.x} ${b.y}`;
-                            route = d;
-                          } else {
-                            route = `M ${a.x} ${a.y} L ${mx} ${a.y} L ${mx} ${b.y} L ${b.x} ${b.y}`;
+                        // Helper: render a CPW trace (ground plane + center conductor)
+                        const CPWPath = ({ d, hovered, id }) => (
+                          <g>
+                            <path d={d} fill="none" stroke="transparent" strokeWidth={20} />
+                            {/* Outer ground clearance */}
+                            <path d={d} fill="none" stroke={BG} strokeWidth={14} strokeLinecap="square" strokeLinejoin="miter" />
+                            {/* Ground plane edges */}
+                            <path d={d} fill="none" stroke={hovered ? TC : TCD} strokeWidth={10} strokeLinecap="square" strokeLinejoin="miter" />
+                            {/* Inner gap (substrate) */}
+                            <path d={d} fill="none" stroke={BG} strokeWidth={6} strokeLinecap="square" strokeLinejoin="miter" />
+                            {/* Center conductor */}
+                            <path d={d} fill="none" stroke={hovered ? TC : TC} strokeWidth={1.8} strokeLinecap="square" strokeLinejoin="miter"
+                              style={{ filter: `drop-shadow(0 0 3px ${TC})` }} />
+                          </g>
+                        );
+
+                        // Helper: meandering CPW resonator
+                        const MeanderRes = ({ startX, startY, endX, endY, mWidth, passes, hovered }) => {
+                          const totalH = Math.abs(endY - startY);
+                          const goDown = endY > startY;
+                          const stepH = totalH / (passes + 1);
+                          const halfW = mWidth / 2;
+                          let d = `M ${startX} ${startY}`;
+                          d += ` L ${startX} ${startY + (goDown ? stepH * 0.4 : -stepH * 0.4)}`;
+                          for (let i = 0; i < passes; i++) {
+                            const y = startY + (goDown ? 1 : -1) * stepH * (i + 0.4);
+                            const nextY = startY + (goDown ? 1 : -1) * stepH * (i + 1.4);
+                            const goRight = i % 2 === 0;
+                            d += ` L ${goRight ? startX + halfW : startX - halfW} ${y}`;
+                            d += ` L ${goRight ? startX + halfW : startX - halfW} ${nextY}`;
                           }
+                          const lastX = passes % 2 === 0 ? startX : (passes % 2 === 1 ? startX - halfW : startX + halfW);
+                          d += ` L ${startX} ${endY}`;
+                          return <CPWPath d={d} hovered={hovered} />;
+                        };
 
-                          const isHovered = hoveredElement && hoveredElement.type === 'coupler' && hoveredElement.data.from === c.from && hoveredElement.data.to === c.to;
+                        return (
+                          <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+                            <defs>
+                              <filter id="qmGlow" x="-30%" y="-30%" width="160%" height="160%">
+                                <feGaussianBlur stdDeviation="2.5" result="blur" />
+                                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                              </filter>
+                              <filter id="qmGlowSoft">
+                                <feGaussianBlur stdDeviation="1.2" result="blur" />
+                                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                              </filter>
+                            </defs>
 
-                          return (
-                            <g 
-                              key={`fab-bus-${idx}`} 
-                              style={{ cursor: 'pointer' }}
-                              onMouseEnter={() => setHoveredElement({ type: 'coupler', data: c })}
-                              onMouseLeave={() => setHoveredElement(null)}
-                            >
-                              <path d={route} fill="none" stroke="transparent" strokeWidth="18" />
-                              <path d={route} fill="none" stroke="#020406" strokeWidth="8" strokeLinecap="square" />
-                              <path 
-                                d={route} 
-                                fill="none" 
-                                stroke={isHovered ? C.green : "#528ebb"} 
-                                strokeWidth="1.8" 
-                                strokeLinecap="square"
-                                style={{ transition: 'stroke 0.2s' }}
-                              />
+                            {/* ── Background ── */}
+                            <rect width={width} height={height} fill={BG} />
+                            {/* Chip boundary */}
+                            <rect x={22} y={22} width={width - 44} height={height - 44} fill="#050c18" stroke="#0e2a45" strokeWidth="1.5" rx="5" />
+                            <rect x={30} y={30} width={width - 60} height={height - 60} fill="none" stroke="#081c30" strokeWidth="0.8" rx="4" strokeDasharray="5 4" />
+
+                            {/* ── Title ── */}
+                            <text x={width / 2} y={48} textAnchor="middle" fill="#1a4870" fontSize="10.5"
+                              fontFamily="Share Tech Mono" letterSpacing="2.5">
+                              Fabricated Superconducting Chip (Qiskit Metal)
+                            </text>
+
+                            {/* ── CPW Bus Couplers (Qiskit Metal RouteMeander style) ── */}
+                            {couplers.map((c, idx) => {
+                              const a = qubitMap[c.from], b = qubitMap[c.to];
+                              if (!a || !b) return null;
+                              const isH = Math.abs(a.x - b.x) > Math.abs(a.y - b.y);
+                              const isHov = hoveredElement && hoveredElement.type === 'coupler' && hoveredElement.data.from === c.from && hoveredElement.data.to === c.to;
+                              let route;
+                              if (isH) {
+                                // Horizontal bus: go from a to midpoint with meander, then to b
+                                const midX = (a.x + b.x) / 2;
+                                const mW = Math.abs(b.x - a.x) * 0.28;
+                                const mH = 22;
+                                const p = 5;
+                                const mxS = midX - mW / 2;
+                                let d = `M ${a.x} ${a.y} L ${mxS} ${a.y}`;
+                                d += ` ${hMeander(mxS, a.y - mH / 2, mW, mH, p).substring(1)}`;
+                                const lastX = ((p - 1) % 2 === 0) ? mxS + mW : mxS;
+                                d += ` L ${lastX} ${b.y} L ${b.x} ${b.y}`;
+                                route = d;
+                              } else {
+                                // Vertical bus: L-route with meander at elbow
+                                const midY = (a.y + b.y) / 2;
+                                const mH = Math.abs(b.y - a.y) * 0.28;
+                                const mW2 = 22;
+                                const p = 5;
+                                const myS = midY - mH / 2;
+                                let d = `M ${a.x} ${a.y} L ${a.x} ${myS}`;
+                                d += ` ${vMeander(a.x - mW2 / 2, myS, mW2, mH, p).substring(1)}`;
+                                const lastY = ((p - 1) % 2 === 0) ? myS + mH : myS;
+                                d += ` L ${b.x} ${lastY} L ${b.x} ${b.y}`;
+                                route = d;
+                              }
+                              return (
+                                <g key={`qm-bus-${idx}`} style={{ cursor: 'pointer' }}
+                                  onMouseEnter={() => setHoveredElement({ type: 'coupler', data: c })}
+                                  onMouseLeave={() => setHoveredElement(null)}>
+                                  <CPWPath d={route} hovered={isHov} />
+                                </g>
+                              );
+                            })}
+
+                            {/* ── Readout Resonators (RouteMeander to launchpads) ── */}
+                            {qubits.map((q, idx) => {
+                              const res = resonators.find(r => r.qubit === q.id) || { id: `R${idx}`, qubit: q.id };
+                              const isHov = hoveredElement && hoveredElement.type === 'resonator' && hoveredElement.data.qubit === q.id;
+                              // Alternate: even qubits go to top, odd go to bottom
+                              const isTopRes = idx % 2 === 0;
+                              const targetY = isTopRes ? topLP.y + 18 : botLP.y - 18;
+                              const startY = isTopRes ? q.y - QH / 2 - 5 : q.y + QH / 2 + 5;
+                              const mW = 38;
+                              const passes = 5;
+                              const totalH = Math.abs(targetY - startY);
+                              const goDown = targetY > startY;
+                              const stepH = totalH / (passes + 1);
+                              let d = `M ${q.x} ${startY}`;
+                              for (let i = 0; i < passes; i++) {
+                                const y1 = startY + (goDown ? 1 : -1) * stepH * (i + 0.5);
+                                const y2 = startY + (goDown ? 1 : -1) * stepH * (i + 1.0);
+                                const goRight = i % 2 === 0;
+                                d += ` L ${goRight ? q.x + mW : q.x - mW} ${y1}`;
+                                d += ` L ${goRight ? q.x + mW : q.x - mW} ${y2}`;
+                              }
+                              d += ` L ${q.x} ${targetY}`;
+                              return (
+                                <g key={`qm-res-${idx}`} style={{ cursor: 'pointer' }}
+                                  onMouseEnter={() => setHoveredElement({ type: 'resonator', data: res })}
+                                  onMouseLeave={() => setHoveredElement(null)}>
+                                  <CPWPath d={d} hovered={isHov} />
+                                </g>
+                              );
+                            })}
+
+                            {/* ── Left Readout Lines (to left bond pads) ── */}
+                            {sortedQ.map((q, idx) => {
+                              if (idx >= leftPads.length) return null;
+                              const pad = leftPads[idx];
+                              const res = resonators.find(r => r.qubit === q.id) || { id: `R${q.id}`, qubit: q.id };
+                              const isHov = hoveredElement && hoveredElement.type === 'resonator' && hoveredElement.data.qubit === q.id;
+                              const d = leftResPath(pad, q);
+                              return (
+                                <g key={`qm-lres-${idx}`} style={{ cursor: 'pointer' }}
+                                  onMouseEnter={() => setHoveredElement({ type: 'resonator', data: res })}
+                                  onMouseLeave={() => setHoveredElement(null)}>
+                                  <CPWPath d={d} hovered={isHov} />
+                                </g>
+                              );
+                            })}
+
+                            {/* ── Right Drive Lines (to right bond pads) ── */}
+                            {sortedQ.map((q, idx) => {
+                              if (idx >= rightPads.length) return null;
+                              const pad = rightPads[idx];
+                              const isHov = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
+                              const d = rightDrivePath(q, pad);
+                              return (
+                                <g key={`qm-rdrv-${idx}`} style={{ cursor: 'pointer' }}
+                                  onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
+                                  onMouseLeave={() => setHoveredElement(null)}>
+                                  <CPWPath d={d} hovered={isHov} />
+                                </g>
+                              );
+                            })}
+
+                            {/* ── Top LaunchpadWirebond (pointing UP) ── */}
+                            <g>
+                              <line x1={topLP.x} y1={22} x2={topLP.x} y2={topLP.y - 8} stroke={TCD} strokeWidth="1.8" />
+                              {/* Outer dashed boundary */}
+                              <polygon points={`${topLP.x - 16},${topLP.y + 14} ${topLP.x + 16},${topLP.y + 14} ${topLP.x + 16},${topLP.y + 2} ${topLP.x},${topLP.y - 14} ${topLP.x - 16},${topLP.y + 2}`}
+                                fill="none" stroke={TCD} strokeWidth="1.2" strokeDasharray="3 2.5" />
+                              {/* Inner metal body */}
+                              <polygon points={`${topLP.x - 11},${topLP.y + 10} ${topLP.x + 11},${topLP.y + 10} ${topLP.x + 11},${topLP.y + 2} ${topLP.x},${topLP.y - 10} ${topLP.x - 11},${topLP.y + 2}`}
+                                fill="#050c18" stroke={TC} strokeWidth="1.3" style={{ filter: `drop-shadow(0 0 3px ${TC})` }} />
+                              {/* Wirebond dot */}
+                              <circle cx={topLP.x} cy={topLP.y + 7} r="2.5" fill={TC} style={{ filter: `drop-shadow(0 0 4px ${TC})` }} />
                             </g>
-                          );
-                        })}
 
-                        {/* Left Readout Resonators */}
-                        {sortedQ.map((q, idx) => {
-                          if (idx >= leftPads.length) return null;
-                          const pad = leftPads[idx];
-                          const d = leftResPath(pad, q);
-                          const res = resonators.find(r => r.qubit === q.id) || { id: `R${q.id}`, qubit: q.id, frequency_ghz: 6.8 };
-                          const isHovered = hoveredElement && hoveredElement.type === 'resonator' && hoveredElement.data.qubit === q.id;
-
-                          return (
-                            <g 
-                              key={`fab-lres-${idx}`} 
-                              style={{ cursor: 'pointer' }}
-                              onMouseEnter={() => setHoveredElement({ type: 'resonator', data: res })}
-                              onMouseLeave={() => setHoveredElement(null)}
-                            >
-                              <path d={d} fill="none" stroke="transparent" strokeWidth="18" />
-                              <path d={d} fill="none" stroke="#020406" strokeWidth="8" strokeLinecap="square" />
-                              <path 
-                                d={d} 
-                                fill="none" 
-                                stroke={isHovered ? C.green : "#4078a6"} 
-                                strokeWidth="1.5" 
-                                strokeLinecap="square" 
-                                style={{ transition: 'stroke 0.2s' }}
-                              />
+                            {/* ── Bottom LaunchpadWirebond (pointing DOWN) ── */}
+                            <g>
+                              <line x1={botLP.x} y1={botLP.y + 8} x2={botLP.x} y2={height - 22} stroke={TCD} strokeWidth="1.8" />
+                              <polygon points={`${botLP.x - 16},${botLP.y - 14} ${botLP.x + 16},${botLP.y - 14} ${botLP.x + 16},${botLP.y - 2} ${botLP.x},${botLP.y + 14} ${botLP.x - 16},${botLP.y - 2}`}
+                                fill="none" stroke={TCD} strokeWidth="1.2" strokeDasharray="3 2.5" />
+                              <polygon points={`${botLP.x - 11},${botLP.y - 10} ${botLP.x + 11},${botLP.y - 10} ${botLP.x + 11},${botLP.y - 2} ${botLP.x},${botLP.y + 10} ${botLP.x - 11},${botLP.y - 2}`}
+                                fill="#050c18" stroke={TC} strokeWidth="1.3" style={{ filter: `drop-shadow(0 0 3px ${TC})` }} />
+                              <circle cx={botLP.x} cy={botLP.y - 7} r="2.5" fill={TC} style={{ filter: `drop-shadow(0 0 4px ${TC})` }} />
                             </g>
-                          );
-                        })}
 
-                        {/* Right Drive Lines */}
-                        {sortedQ.map((q, idx) => {
-                          if (idx >= rightPads.length) return null;
-                          const pad = rightPads[idx];
-                          const d = rightDrivePath(q, pad);
-                          const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
+                            {/* ── Left LaunchpadWirebonds (pointing LEFT) ── */}
+                            {leftPads.map((pad, idx) => (
+                              <g key={`qm-lp-l-${idx}`}>
+                                <line x1={22} y1={pad.y} x2={pad.x - 8} y2={pad.y} stroke={TCD} strokeWidth="1.8" />
+                                <polygon points={`${pad.x + 14},${pad.y - 16} ${pad.x + 14},${pad.y + 16} ${pad.x + 2},${pad.y + 16} ${pad.x - 14},${pad.y} ${pad.x + 2},${pad.y - 16}`}
+                                  fill="none" stroke={TCD} strokeWidth="1.2" strokeDasharray="3 2.5" />
+                                <polygon points={`${pad.x + 10},${pad.y - 11} ${pad.x + 10},${pad.y + 11} ${pad.x + 2},${pad.y + 11} ${pad.x - 10},${pad.y} ${pad.x + 2},${pad.y - 11}`}
+                                  fill="#050c18" stroke={TC} strokeWidth="1.3" style={{ filter: `drop-shadow(0 0 3px ${TC})` }} />
+                                <circle cx={pad.x + 6} cy={pad.y} r="2.5" fill={TC} style={{ filter: `drop-shadow(0 0 4px ${TC})` }} />
+                              </g>
+                            ))}
 
-                          return (
-                            <g 
-                              key={`fab-rdrv-${idx}`}
-                              style={{ cursor: 'pointer' }}
-                              onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
-                              onMouseLeave={() => setHoveredElement(null)}
-                            >
-                              <path d={d} fill="none" stroke="transparent" strokeWidth="16" />
-                              <path d={d} fill="none" stroke="#020406" strokeWidth="8" strokeLinecap="square" />
-                              <path 
-                                d={d} 
-                                fill="none" 
-                                stroke={isHovered ? C.green : "#4078a6"} 
-                                strokeWidth="1.5" 
-                                strokeLinecap="square"
-                                style={{ transition: 'stroke 0.2s' }}
-                              />
-                            </g>
-                          );
-                        })}
+                            {/* ── Right LaunchpadWirebonds (pointing RIGHT) ── */}
+                            {rightPads.map((pad, idx) => (
+                              <g key={`qm-lp-r-${idx}`}>
+                                <line x1={pad.x + 8} y1={pad.y} x2={width - 22} y2={pad.y} stroke={TCD} strokeWidth="1.8" />
+                                <polygon points={`${pad.x - 14},${pad.y - 16} ${pad.x - 14},${pad.y + 16} ${pad.x - 2},${pad.y + 16} ${pad.x + 14},${pad.y} ${pad.x - 2},${pad.y - 16}`}
+                                  fill="none" stroke={TCD} strokeWidth="1.2" strokeDasharray="3 2.5" />
+                                <polygon points={`${pad.x - 10},${pad.y - 11} ${pad.x - 10},${pad.y + 11} ${pad.x - 2},${pad.y + 11} ${pad.x + 10},${pad.y} ${pad.x - 2},${pad.y - 11}`}
+                                  fill="#050c18" stroke={TC} strokeWidth="1.3" style={{ filter: `drop-shadow(0 0 3px ${TC})` }} />
+                                <circle cx={pad.x - 6} cy={pad.y} r="2.5" fill={TC} style={{ filter: `drop-shadow(0 0 4px ${TC})` }} />
+                              </g>
+                            ))}
 
-                        {/* Left Launchpads (pointing right) */}
-                        {leftPads.map((pad, idx) => (
-                          <g key={`fab-bp-left-${idx}`}>
-                            <line x1={pad.x - 12} y1={pad.y} x2={0} y2={pad.y} stroke="#1b3659" strokeWidth="1.5" />
-                            <polygon 
-                              points={`${pad.x - 12},${pad.y - 12} ${pad.x + 4},${pad.y - 12} ${pad.x + 14},${pad.y} ${pad.x + 4},${pad.y + 12} ${pad.x - 12},${pad.y + 12}`} 
-                              fill="none" 
-                              stroke="#2d4f7c" 
-                              strokeWidth="1.2" 
-                              strokeDasharray="3 2" 
-                            />
-                            <polygon 
-                              points={`${pad.x - 9},${pad.y - 8} ${pad.x + 2},${pad.y - 8} ${pad.x + 9},${pad.y} ${pad.x + 2},${pad.y + 8} ${pad.x - 9},${pad.y + 8}`} 
-                              fill="#061224" 
-                              stroke="#1c3659" 
-                              strokeWidth="0.8" 
-                            />
-                            <circle cx={pad.x - 2} cy={pad.y} r="2.5" fill="#4d8cb8" />
-                          </g>
-                        ))}
-
-                        {/* Right Launchpads (pointing left) */}
-                        {rightPads.map((pad, idx) => (
-                          <g key={`fab-bp-right-${idx}`}>
-                            <line x1={pad.x + 12} y1={pad.y} x2={width} y2={pad.y} stroke="#1b3659" strokeWidth="1.5" />
-                            <polygon 
-                              points={`${pad.x + 12},${pad.y - 12} ${pad.x - 4},${pad.y - 12} ${pad.x - 14},${pad.y} ${pad.x - 4},${pad.y + 12} ${pad.x + 12},${pad.y + 12}`} 
-                              fill="none" 
-                              stroke="#2d4f7c" 
-                              strokeWidth="1.2" 
-                              strokeDasharray="3 2" 
-                            />
-                            <polygon 
-                              points={`${pad.x + 9},${pad.y - 8} ${pad.x - 2},${pad.y - 8} ${pad.x - 9},${pad.y} ${pad.x - 2},${pad.y + 8} ${pad.x + 9},${pad.y + 8}`} 
-                              fill="#061224" 
-                              stroke="#1c3659" 
-                              strokeWidth="0.8" 
-                            />
-                            <circle cx={pad.x + 2} cy={pad.y} r="2.5" fill="#4d8cb8" />
-                          </g>
-                        ))}
-
-                        {/* Transmon Qubits (Lithography style) */}
-                        {qubits.map(q => {
-                          const qw = 60, qh = 60;
-                          const padW = 42, padH = 12;
-                          const isHovered = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
-                          return (
-                            <g 
-                              key={`fab-q-${q.id}`}
-                              style={{ cursor: 'pointer' }}
-                              onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
-                              onMouseLeave={() => setHoveredElement(null)}
-                            >
-                              <rect 
-                                x={q.x - qw/2} y={q.y - qh/2} width={qw} height={qh} 
-                                fill={isHovered ? "rgba(45, 79, 124, 0.1)" : "transparent"} 
-                                stroke={isHovered ? C.green : "#2d4f7c"} 
-                                strokeWidth="1.2" 
-                                strokeDasharray="4 3" 
-                                rx="4"
-                                style={{ transition: 'all 0.2s' }}
-                              />
-                              <rect 
-                                x={q.x - padW/2} y={q.y - 20} width={padW} height={padH} 
-                                fill="#061224" stroke="#1c3659" strokeWidth="1" rx="2" 
-                              />
-                              <rect 
-                                x={q.x - padW/2} y={q.y + 8} width={padW} height={padH} 
-                                fill="#061224" stroke="#1c3659" strokeWidth="1" rx="2" 
-                              />
-                              <line x1={q.x - padW/2 + 4} y1={q.y - 14} x2={q.x + padW/2 - 4} y2={q.y - 14} stroke="#1c3659" strokeWidth="0.8" />
-                              <line x1={q.x - padW/2 + 4} y1={q.y + 14} x2={q.x + padW/2 - 4} y2={q.y + 14} stroke="#1c3659" strokeWidth="0.8" />
-                              
-                              <line x1={q.x - 6} y1={q.y} x2={q.x + 6} y2={q.y} stroke={isHovered ? C.green : "#3e70a8"} strokeWidth="1.2" />
-                              <line x1={q.x} y1={q.y - 6} x2={q.x} y2={q.y + 6} stroke={isHovered ? C.green : "#3e70a8"} strokeWidth="1.2" />
-                              <circle cx={q.x} cy={q.y} r="2" fill="#ffffff" />
-                              <text x={q.x} y={q.y - 34} textAnchor="middle" fill={isHovered ? C.white : "#2d4f7c"} fontSize="9.5" fontFamily="Share Tech Mono" fontWeight="bold">{q.id}</text>
-                            </g>
-                          );
-                        })}
-                      </svg>
+                            {/* ── TransmonPocket Qubits (Qiskit Metal style) ── */}
+                            {qubits.map(q => {
+                              const isHov = hoveredElement && hoveredElement.type === 'qubit' && hoveredElement.data.id === q.id;
+                              const col = isHov ? '#00f5d4' : TC;
+                              const dim = isHov ? TC : TCD;
+                              return (
+                                <g key={`qm-q-${q.id}`} style={{ cursor: 'pointer' }}
+                                  onMouseEnter={() => setHoveredElement({ type: 'qubit', data: q })}
+                                  onMouseLeave={() => setHoveredElement(null)}>
+                                  {/* Outer pocket boundary (dashed) */}
+                                  <rect x={q.x - QW / 2} y={q.y - QH / 2} width={QW} height={QH}
+                                    fill="none" stroke={dim} strokeWidth="0.9" strokeDasharray="3 2.5" rx="3" />
+                                  {/* Inner metal island */}
+                                  <rect x={q.x - IW / 2} y={q.y - IH / 2} width={IW} height={IH}
+                                    fill="#050c18" stroke={col} strokeWidth="1.4" rx="2"
+                                    style={{ filter: isHov ? `drop-shadow(0 0 5px ${col})` : `drop-shadow(0 0 2px ${col})` }} />
+                                  {/* Top coupling pad */}
+                                  <rect x={q.x - cpW / 2} y={q.y - IH / 2 - cpH} width={cpW} height={cpH}
+                                    fill="#050c18" stroke={col} strokeWidth="1.1" rx="1"
+                                    style={{ filter: `drop-shadow(0 0 2px ${col})` }} />
+                                  {/* Bottom coupling pad */}
+                                  <rect x={q.x - cpW / 2} y={q.y + IH / 2} width={cpW} height={cpH}
+                                    fill="#050c18" stroke={col} strokeWidth="1.1" rx="1"
+                                    style={{ filter: `drop-shadow(0 0 2px ${col})` }} />
+                                  {/* Internal grid lines (metal layer texture) */}
+                                  <line x1={q.x - IW / 2 + 8} y1={q.y} x2={q.x + IW / 2 - 8} y2={q.y} stroke={dim} strokeWidth="0.7" />
+                                  <line x1={q.x} y1={q.y - IH / 2 + 6} x2={q.x} y2={q.y + IH / 2 - 6} stroke={dim} strokeWidth="0.7" />
+                                  {/* Josephson junction cross */}
+                                  <rect x={q.x - 5} y={q.y - 5} width={10} height={10}
+                                    fill="none" stroke={col} strokeWidth="1"
+                                    transform={`rotate(45 ${q.x} ${q.y})`}
+                                    style={{ filter: `drop-shadow(0 0 3px ${col})` }} />
+                                  <circle cx={q.x} cy={q.y} r="1.8" fill={col}
+                                    style={{ filter: `drop-shadow(0 0 4px ${col})` }} />
+                                  {/* Qubit label */}
+                                  <text x={q.x} y={q.y - QH / 2 - 7} textAnchor="middle"
+                                    fill={isHov ? col : '#1a4870'} fontSize="9.5" fontFamily="Share Tech Mono" fontWeight="bold">
+                                    {q.id}
+                                  </text>
+                                </g>
+                              );
+                            })}
+                          </svg>
+                        );
+                      })()
                     ) : viewMode === 'physical' ? (
                       /* ── RENDER: PHYSICAL DIE LAYOUT ── */
                       <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', display: 'block' }}>
